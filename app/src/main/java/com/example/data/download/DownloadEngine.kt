@@ -70,9 +70,9 @@ class DownloadEngine(
             val body = response.body ?: throw Exception("Empty response body")
 
             try {
+                var bytesDownloaded = startBytes
                 FileOutputStream(tempFile, startBytes > 0).use { outputStream ->
                     val buffer = ByteArray(8192)
-                    var bytesDownloaded = startBytes
                     val startTime = System.nanoTime()
 
                     body.byteStream().use { input ->
