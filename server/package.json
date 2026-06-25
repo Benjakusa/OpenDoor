@@ -1,0 +1,14 @@
+{
+  "name": "opendoor-backend",
+  "version": "1.0.0",
+  "description": "Backend server for OpenDoor - extracts video URLs from Facebook, TikTok, etc. using yt-dlp",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.0"
+  }
+}
