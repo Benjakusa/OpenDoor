@@ -1,0 +1,6 @@
+{
+  "name": "OpenDoor",
+  "description": "Save and manage videos from supported social and video sharing platforms for offline playback. Features a smart download manager, full-screen media player, and local library.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
