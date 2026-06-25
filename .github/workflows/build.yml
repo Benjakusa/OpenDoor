@@ -30,10 +30,13 @@ jobs:
           -storepass android -keypass android \
           -dname "CN=Android Debug, O=Android, C=US"
 
-    - name: Create .env from secrets
+    - name: Fix gradlew permissions
+      run: chmod +x gradlew
+
+    - name: Create .env from secrets (optional)
       run: |
-        echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env
-        echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+        [ -n "${{ secrets.BACKEND_URL }}" ] && echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env || true
+        [ -n "${{ secrets.GEMINI_API_KEY }}" ] && echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env || true
       shell: bash
 
     - name: Setup Gradle
