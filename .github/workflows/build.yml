@@ -30,6 +30,12 @@ jobs:
           -storepass android -keypass android \
           -dname "CN=Android Debug, O=Android, C=US"
 
+    - name: Create .env from secrets
+      run: |
+        echo "BACKEND_URL=${{ secrets.BACKEND_URL }}" > .env
+        echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+      shell: bash
+
     - name: Setup Gradle
       uses: gradle/actions/setup-gradle@v3
 
