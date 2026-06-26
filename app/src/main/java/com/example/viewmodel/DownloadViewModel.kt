@@ -15,6 +15,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
@@ -118,10 +120,14 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 .readTimeout(60, TimeUnit.SECONDS)
                 .build()
 
+            val moshi = Moshi.Builder()
+                .addLast(KotlinJsonAdapterFactory())
+                .build()
+
             backendApi = Retrofit.Builder()
                 .baseUrl(if (backendUrl.endsWith("/")) backendUrl else "$backendUrl/")
                 .client(client)
-                .addConverterFactory(MoshiConverterFactory.create())
+                .addConverterFactory(MoshiConverterFactory.create(moshi))
                 .build()
                 .create(BackendApi::class.java)
 

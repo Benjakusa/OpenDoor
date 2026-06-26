@@ -1,11 +1,14 @@
 package com.example.data.remote
 
+import com.squareup.moshi.JsonClass
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 
+@JsonClass(generateAdapter = true)
 data class ExtractRequest(val url: String)
 
+@JsonClass(generateAdapter = true)
 data class FormatInfo(
     val quality: String,
     val ext: String,
@@ -15,6 +18,7 @@ data class FormatInfo(
     val hasAudio: Boolean
 )
 
+@JsonClass(generateAdapter = true)
 data class ExtractResponse(
     val title: String,
     val author: String,
@@ -27,6 +31,7 @@ data class ExtractResponse(
     val audioFormats: List<FormatInfo>
 )
 
+@JsonClass(generateAdapter = true)
 data class HealthResponse(val status: String)
 
 interface BackendApi {
