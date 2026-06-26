@@ -86,7 +86,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         private set
 
     private val backendApi: BackendApi?
-    private var backendAvailable = false
+    private var backendAvailable = true
     private val downloadDir: File
 
     init {
@@ -114,8 +114,8 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
         if (backendUrl != null) {
             val client = OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(10, TimeUnit.SECONDS)
+                .connectTimeout(30, TimeUnit.SECONDS)
+                .readTimeout(60, TimeUnit.SECONDS)
                 .build()
 
             backendApi = Retrofit.Builder()
@@ -125,17 +125,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 .build()
                 .create(BackendApi::class.java)
 
-            viewModelScope.launch {
-                try {
-                    backendApi.health()
-                    backendAvailable = true
-                    Log.i("DownloadViewModel", "Backend available at $backendUrl")
-                } catch (e: Exception) {
-                    backendAvailable = false
-                    Log.w("DownloadViewModel", "Backend unreachable: ${e.message}")
-                    _metadataState.value = MetadataState.Error("Backend server unreachable. Check your connection and try again.")
-                }
-            }
+            Log.i("DownloadViewModel", "Backend configured at $backendUrl")
         } else {
             backendApi = null
             backendAvailable = false
@@ -172,7 +162,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             _metadataState.value = MetadataState.Fetching
 
-            if (!backendAvailable || backendApi == null) {
+            if (backendApi == null) {
                 _metadataState.value = MetadataState.Error("Backend is not connected. Check your BACKEND_URL configuration.")
                 return@launch
             }
@@ -219,7 +209,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     fun startDownload(metadata: VideoMetadata, optionName: String, isAudio: Boolean, sizeEstimate: Long) {
         viewModelScope.launch {
             val downloadUrl = formatUrlMap[optionName]
-            if (downloadUrl == null || !backendAvailable) {
+            if (downloadUrl == null) {
                 _metadataState.value = MetadataState.Error("Download URL not available. Try fetching video info again.")
                 return@launch
             }
