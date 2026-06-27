@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
@@ -25,6 +27,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -237,8 +240,9 @@ fun VideoVaultApp(
 
 @Composable
 fun SplashScreen(onFinish: () -> Unit) {
+    val context = LocalContext.current
     LaunchedEffect(Unit) {
-        delay(8000)
+        delay(2000)
         onFinish()
     }
     Box(
@@ -248,10 +252,10 @@ fun SplashScreen(onFinish: () -> Unit) {
                 Brush.verticalGradient(
                     listOf(VaultDarkGray, VaultBlack)
                 )
-            ),
-        contentAlignment = Alignment.Center
+            )
     ) {
         Column(
+            modifier = Modifier.align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -282,6 +286,28 @@ fun SplashScreen(onFinish: () -> Unit) {
                 color = VaultBlue,
                 modifier = Modifier.size(36.dp),
                 strokeWidth = 3.dp
+            )
+        }
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 32.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Powered by ",
+                color = Color.Gray,
+                fontSize = 12.sp
+            )
+            Text(
+                text = "Opendesk",
+                color = VaultBlue,
+                fontSize = 12.sp,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier.clickable {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/254722839617"))
+                    context.startActivity(intent)
+                }
             )
         }
     }
