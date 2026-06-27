@@ -22,7 +22,7 @@ data class FormatInfo(
 data class ExtractResponse(
     val title: String,
     val author: String,
-    val duration: Long,
+    val duration: Double,
     val thumbnailUrl: String,
     val platform: String,
     val uploadDate: String,

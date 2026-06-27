@@ -197,7 +197,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                         url = url,
                         title = response.title,
                         author = response.author,
-                        duration = response.duration,
+                        duration = response.duration.toLong(),
                         thumbnailUrl = response.thumbnailUrl,
                         platform = response.platform,
                         uploadDate = response.uploadDate,
