@@ -15,9 +15,11 @@ import com.example.data.remote.BackendApi
 import com.example.data.remote.ExtractRequest
 import com.example.data.repository.DownloadRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
@@ -209,7 +211,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                         availableAudios = audios
                     )
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 Log.e("DownloadViewModel", "Extraction failed", e)
                 _metadataState.value = MetadataState.Error("Failed to extract video: ${e.message ?: "Unknown error"}")
             }
@@ -228,13 +230,15 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             val fileName = "${sanitizeFileName(metadata.title)}_${optionName.replace(" ", "_")}.$ext"
             val destFile = File(downloadDir, fileName)
             val tempFile = File(downloadDir, "$fileName.tmp")
-            var counter = 1
-            val baseName = fileName.substringBeforeLast(".")
-            val extension = fileName.substringAfterLast(".")
-            while (destFile.exists()) {
-                val uniqueName = "${baseName}_($counter).$extension"
-                destFile.renameTo(File(downloadDir, uniqueName))
-                counter++
+            withContext(Dispatchers.IO) {
+                var counter = 0
+                val baseName = fileName.substringBeforeLast(".")
+                val extension = fileName.substringAfterLast(".")
+                while (destFile.exists() && counter < 100) {
+                    counter++
+                    val uniqueName = "${baseName}_($counter).$extension"
+                    destFile.renameTo(File(downloadDir, uniqueName))
+                }
             }
 
             val newItem = DownloadItem(
@@ -342,7 +346,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             }
             file.delete()
             uri?.toString()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.w("DownloadViewModel", "Failed to save to public storage: ${e.message}")
             null
         }
