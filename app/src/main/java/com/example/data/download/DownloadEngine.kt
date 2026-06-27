@@ -79,6 +79,10 @@ class DownloadEngine(
                 }
 
                 var bytesDownloaded = startBytes
+                var speedStr = "0 B/s"
+                var eta = "unknown"
+                var speed = 0.0
+                var elapsed = 0.0
                 FileOutputStream(tempFile, startBytes > 0).use { outputStream ->
                     val buffer = ByteArray(8192)
                     val startTime = System.nanoTime()
@@ -91,12 +95,12 @@ class DownloadEngine(
                             bytesDownloaded += bytesRead
                             outputStream.write(buffer, 0, bytesRead)
 
-                            val elapsed = (System.nanoTime() - startTime) / 1_000_000_000.0
+                            elapsed = (System.nanoTime() - startTime) / 1_000_000_000.0
                             val downloadedSinceStart = bytesDownloaded - startBytes
-                            val speed = if (elapsed > 0) downloadedSinceStart / elapsed else 0.0
+                            speed = if (elapsed > 0) downloadedSinceStart / elapsed else 0.0
 
                             val remainingBytes = if (totalBytes > 0) totalBytes - bytesDownloaded else -1L
-                            val eta = when {
+                            eta = when {
                                 remainingBytes > 0 && speed > 0 -> {
                                     val secs = (remainingBytes / speed).toLong()
                                     when {
@@ -108,7 +112,7 @@ class DownloadEngine(
                                 else -> "unknown"
                             }
 
-                            val speedStr = when {
+                            speedStr = when {
                                 speed >= 1_000_000 -> String.format("%.1f MB/s", speed / 1_000_000)
                                 speed >= 1_000 -> String.format("%.0f KB/s", speed / 1_000)
                                 else -> String.format("%.0f B/s", speed)
@@ -129,6 +133,16 @@ class DownloadEngine(
                 if (totalBytes < 0 || bytesDownloaded >= totalBytes) {
                     tempFile.renameTo(destination)
                 }
+
+                // Report final completion progress (important when totalBytes is unknown)
+                onProgress(
+                    DownloadProgress(
+                        bytesDownloaded = bytesDownloaded,
+                        totalBytes = bytesDownloaded,
+                        speed = speedStr,
+                        eta = "done"
+                    )
+                )
             } catch (e: CancellationException) {
                 body?.close()
                 response?.close()

@@ -1,11 +1,12 @@
 const express = require("express");
 const { exec } = require("child_process");
 const cors = require("cors");
-const path = require("path");
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+
+const UA = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36";
 
 app.post("/api/extract", (req, res) => {
   const { url } = req.body;
@@ -13,11 +14,16 @@ app.post("/api/extract", (req, res) => {
     return res.status(400).json({ error: "URL is required" });
   }
 
-  // Basic sanitization to prevent shell injection
   const sanitized = url.replace(/["`$\\]/g, "");
 
+  // Detect platform for extractor-specific args
+  const isInstagram = /instagram\.com/i.test(sanitized);
+
+  const extractorArgs = isInstagram ? "--extractor-args \"instagram:api=web\"" : "";
+  const cmd = `yt-dlp -J --no-playlist --no-warnings --user-agent "${UA}" --extractor-retries 3 --retries 3 ${extractorArgs} "${sanitized}"`;
+
   exec(
-    `yt-dlp -J --no-playlist --no-warnings "${sanitized}"`,
+    cmd,
     {
       maxBuffer: 50 * 1024 * 1024,
       timeout: 120000,
@@ -27,8 +33,9 @@ app.post("/api/extract", (req, res) => {
       if (error) {
         const msg = stderr
           ? stderr.slice(0, 500)
-          : "Extraction failed. Ensure yt-dlp is installed and the URL is valid.";
-        return res.status(500).json({ error: msg });
+          : "Extraction failed. Check yt-dlp installation.";
+        console.error("yt-dlp error for", sanitized, ":", stderr || error.message);
+        return res.status(500).json({ error: msg, code: error.code });
       }
 
       try {
@@ -61,6 +68,7 @@ app.post("/api/extract", (req, res) => {
           audioFormats,
         });
       } catch (e) {
+        console.error("JSON parse error:", e.message);
         res.status(500).json({ error: "Failed to parse video information" });
       }
     }
@@ -69,6 +77,13 @@ app.post("/api/extract", (req, res) => {
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+app.get("/api/version", (_req, res) => {
+  exec("yt-dlp --version", { timeout: 10000 }, (err, stdout) => {
+    if (err) return res.json({ ytDlp: "unknown" });
+    res.json({ ytDlp: stdout.trim() });
+  });
 });
 
 const PORT = process.env.PORT || 3000;
