@@ -182,33 +182,43 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
             try {
                 val response = backendApi.extractVideo(ExtractRequest(url))
-                formatUrlMap.clear()
 
-                response.formats.forEach { f ->
+                if (response.error == true) {
+                    _metadataState.value = MetadataState.Error(response.message ?: "Extraction failed")
+                    return@launch
+                }
+
+                formatUrlMap.clear()
+                val formats = response.formats ?: emptyList()
+
+                formats.forEach { f ->
                     formatUrlMap[f.quality] = f.downloadUrl
                     formatUrlMap["${f.quality}.${f.ext}"] = f.downloadUrl
                 }
 
-                val videos = response.videoFormats
+                val videoFormats = response.videoFormats ?: emptyList()
+                val audioFormats = response.audioFormats ?: emptyList()
+
+                val videos = videoFormats
                     .filter { it.hasAudio }
-                    .ifEmpty { response.videoFormats }
+                    .ifEmpty { videoFormats }
                     .map { ResolutionOption(it.quality, it.fileSize) }
                     .ifEmpty { listOf(ResolutionOption("Default Quality", 0)) }
 
-                val audios = response.audioFormats.ifEmpty {
-                    response.formats.filter { !it.hasVideo && it.hasAudio }
+                val audios = audioFormats.ifEmpty {
+                    formats.filter { !it.hasVideo && it.hasAudio }
                 }.map { AudioOption(it.quality, it.fileSize) }
                     .ifEmpty { listOf(AudioOption("Audio Only", 0)) }
 
                 _metadataState.value = MetadataState.Success(
                     VideoMetadata(
                         url = url,
-                        title = response.title,
-                        author = response.author,
-                        duration = response.duration.toLong(),
-                        thumbnailUrl = response.thumbnailUrl,
-                        platform = response.platform,
-                        uploadDate = response.uploadDate,
+                        title = response.title ?: "Unknown",
+                        author = response.author ?: "Unknown",
+                        duration = (response.duration ?: 0.0).toLong(),
+                        thumbnailUrl = response.thumbnailUrl ?: "",
+                        platform = response.platform ?: "Unknown",
+                        uploadDate = response.uploadDate ?: "",
                         availableResolutions = videos,
                         availableAudios = audios
                     )

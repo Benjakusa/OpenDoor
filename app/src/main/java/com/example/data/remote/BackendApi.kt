@@ -20,15 +20,17 @@ data class FormatInfo(
 
 @JsonClass(generateAdapter = true)
 data class ExtractResponse(
-    val title: String,
-    val author: String,
-    val duration: Double,
-    val thumbnailUrl: String,
-    val platform: String,
-    val uploadDate: String,
-    val formats: List<FormatInfo>,
-    val videoFormats: List<FormatInfo>,
-    val audioFormats: List<FormatInfo>
+    val error: Boolean? = null,
+    val message: String? = null,
+    val title: String? = null,
+    val author: String? = null,
+    val duration: Double? = null,
+    val thumbnailUrl: String? = null,
+    val platform: String? = null,
+    val uploadDate: String? = null,
+    val formats: List<FormatInfo>? = null,
+    val videoFormats: List<FormatInfo>? = null,
+    val audioFormats: List<FormatInfo>? = null
 )
 
 @JsonClass(generateAdapter = true)
