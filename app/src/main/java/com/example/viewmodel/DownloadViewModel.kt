@@ -22,6 +22,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
@@ -121,6 +122,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
         if (backendUrl != null) {
             val client = OkHttpClient.Builder()
+                .connectionPool(ConnectionPool(2, 30, TimeUnit.SECONDS))
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
                 .build()
@@ -220,93 +222,110 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
     fun startDownload(metadata: VideoMetadata, optionName: String, isAudio: Boolean, sizeEstimate: Long) {
         viewModelScope.launch {
-            val downloadUrl = formatUrlMap[optionName]
-            if (downloadUrl == null) {
-                _metadataState.value = MetadataState.Error("Download URL not available. Try fetching video info again.")
-                return@launch
-            }
-
-            val ext = detectExtension(downloadUrl, isAudio)
-            val fileName = "${sanitizeFileName(metadata.title)}_${optionName.replace(" ", "_")}.$ext"
-            val destFile = File(downloadDir, fileName)
-            val tempFile = File(downloadDir, "$fileName.tmp")
-            withContext(Dispatchers.IO) {
-                var counter = 0
-                val baseName = fileName.substringBeforeLast(".")
-                val extension = fileName.substringAfterLast(".")
-                while (destFile.exists() && counter < 100) {
-                    counter++
-                    val uniqueName = "${baseName}_($counter).$extension"
-                    destFile.renameTo(File(downloadDir, uniqueName))
+            try {
+                val downloadUrl = formatUrlMap[optionName]
+                if (downloadUrl == null) {
+                    _metadataState.value = MetadataState.Error("Download URL not available. Try fetching video info again.")
+                    return@launch
                 }
-            }
 
-            val newItem = DownloadItem(
-                url = metadata.url,
-                title = metadata.title,
-                author = metadata.author,
-                duration = metadata.duration,
-                thumbnailUrl = metadata.thumbnailUrl,
-                platform = metadata.platform,
-                fileType = if (isAudio) "audio" else "video",
-                quality = optionName,
-                filePath = downloadUrl,
-                fileSize = sizeEstimate.coerceAtLeast(1),
-                downloadProgress = 0.0f,
-                downloadSpeed = "0 KB/s",
-                eta = "starting...",
-                status = "Downloading",
-                isFavorite = false,
-                timestamp = System.currentTimeMillis()
-            )
+                val ext = detectExtension(downloadUrl, isAudio)
+                val fileName = "${sanitizeFileName(metadata.title)}_${optionName.replace(" ", "_")}.$ext"
+                val destFile = File(downloadDir, fileName)
+                val tempFile = File(downloadDir, "$fileName.tmp")
+                withContext(Dispatchers.IO) {
+                    var counter = 0
+                    val baseName = fileName.substringBeforeLast(".")
+                    val extension = fileName.substringAfterLast(".")
+                    while (destFile.exists() && counter < 100) {
+                        counter++
+                        val uniqueName = "${baseName}_($counter).$extension"
+                        destFile.renameTo(File(downloadDir, uniqueName))
+                    }
+                }
 
-            val downloadId = repository.insert(newItem).toInt()
+                val newItem = DownloadItem(
+                    url = metadata.url,
+                    title = metadata.title,
+                    author = metadata.author,
+                    duration = metadata.duration,
+                    thumbnailUrl = metadata.thumbnailUrl,
+                    platform = metadata.platform,
+                    fileType = if (isAudio) "audio" else "video",
+                    quality = optionName,
+                    filePath = downloadUrl,
+                    fileSize = sizeEstimate.coerceAtLeast(1),
+                    downloadProgress = 0.0f,
+                    downloadSpeed = "0 KB/s",
+                    eta = "starting...",
+                    status = "Downloading",
+                    isFavorite = false,
+                    timestamp = System.currentTimeMillis()
+                )
 
-            val job = downloadEngine.download(
-                url = downloadUrl,
-                destination = destFile,
-                tempFile = tempFile,
-                scope = viewModelScope,
-                onProgress = { progress ->
-                    viewModelScope.launch {
-                        repository.updateProgress(
-                            id = downloadId,
-                            progress = progress.fraction,
-                            speed = progress.speed,
-                            eta = progress.eta,
-                            status = if (progress.fraction < 1f) "Downloading" else "Completed"
-                        )
-                        if (progress.fraction >= 1f) {
-                            repository.getDownloadById(downloadId)?.let { item ->
-                                val mime = if (isAudio) "audio/mp4" else "video/mp4"
-                                val publicUri = saveToPublicStorage(destFile, fileName, mime)
-                                repository.update(item.copy(filePath = publicUri ?: destFile.absolutePath))
+                val downloadId = repository.insert(newItem).toInt()
+
+                val job = downloadEngine.download(
+                    url = downloadUrl,
+                    destination = destFile,
+                    tempFile = tempFile,
+                    scope = viewModelScope,
+                    onProgress = { progress ->
+                        viewModelScope.launch {
+                            try {
+                                repository.updateProgress(
+                                    id = downloadId,
+                                    progress = progress.fraction,
+                                    speed = progress.speed,
+                                    eta = progress.eta,
+                                    status = if (progress.fraction < 1f) "Downloading" else "Completed"
+                                )
+                                if (progress.fraction >= 1f) {
+                                    repository.getDownloadById(downloadId)?.let { item ->
+                                        val mime = if (isAudio) "audio/mp4" else "video/mp4"
+                                        val publicUri = saveToPublicStorage(tempFile, fileName, mime)
+                                        repository.update(item.copy(filePath = publicUri ?: destFile.absolutePath))
+                                    }
+                                }
+                            } catch (e: Throwable) {
+                                Log.e("DownloadViewModel", "Progress update failed", e)
+                            }
+                        }
+                    }
+                )
+
+                activeJobs[downloadId] = job
+
+                job.invokeOnCompletion { cause ->
+                    if (cause is CancellationException) {
+                        viewModelScope.launch {
+                            try {
+                                val item = repository.getDownloadById(downloadId)
+                                if (item != null && item.status != "Completed") {
+                                    repository.update(item.copy(status = "Paused", downloadSpeed = "0 KB/s", eta = "Paused"))
+                                }
+                            } catch (e: Throwable) {
+                                Log.e("DownloadViewModel", "Pause handler failed", e)
+                            }
+                        }
+                    } else if (cause != null) {
+                        viewModelScope.launch {
+                            try {
+                                repository.updateProgress(downloadId, 0.0f, "0 KB/s", "error", "Failed")
+                            } catch (e: Throwable) {
+                                Log.e("DownloadViewModel", "Failure handler failed", e)
                             }
                         }
                     }
                 }
-            )
 
-            activeJobs[downloadId] = job
-
-            job.invokeOnCompletion { cause ->
-                if (cause is CancellationException) {
-                    viewModelScope.launch {
-                        val item = repository.getDownloadById(downloadId)
-                        if (item != null && item.status != "Completed") {
-                            repository.update(item.copy(status = "Paused", downloadSpeed = "0 KB/s", eta = "Paused"))
-                        }
-                    }
-                } else if (cause != null) {
-                    viewModelScope.launch {
-                        repository.updateProgress(downloadId, 0.0f, "0 KB/s", "error", "Failed")
-                    }
-                }
+                urlInput.value = ""
+                _metadataState.value = MetadataState.Idle
+                totalSimulatedDownloads.value += 1
+            } catch (e: Throwable) {
+                Log.e("DownloadViewModel", "Failed to start download", e)
+                _metadataState.value = MetadataState.Error("Failed to start download: ${e.message ?: "Unknown error"}")
             }
-
-            urlInput.value = ""
-            _metadataState.value = MetadataState.Idle
-            totalSimulatedDownloads.value += 1
         }
     }
 
@@ -367,46 +386,55 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
     fun resumeDownload(id: Int) {
         viewModelScope.launch {
-            val item = repository.getDownloadById(id) ?: return@launch
-            val downloadUrl = formatUrlMap[item.quality]
-            if (downloadUrl == null || !backendAvailable) {
-                _metadataState.value = MetadataState.Error("Cannot resume: backend unavailable.")
-                return@launch
-            }
+            try {
+                val item = repository.getDownloadById(id) ?: return@launch
+                val downloadUrl = formatUrlMap[item.quality]
+                if (downloadUrl == null || !backendAvailable) {
+                    _metadataState.value = MetadataState.Error("Cannot resume: backend unavailable.")
+                    return@launch
+                }
 
-            val ext = detectExtension(downloadUrl, item.fileType == "audio")
-            val fileName = "${sanitizeFileName(item.title)}_${item.quality.replace(" ", "_")}.$ext"
-            val destFile = File(downloadDir, fileName)
-            val tempFile = File(downloadDir, "$fileName.tmp")
+                val ext = detectExtension(downloadUrl, item.fileType == "audio")
+                val fileName = "${sanitizeFileName(item.title)}_${item.quality.replace(" ", "_")}.$ext"
+                val destFile = File(downloadDir, fileName)
+                val tempFile = File(downloadDir, "$fileName.tmp")
 
-            repository.updateProgress(id, item.downloadProgress, "0 KB/s", "resuming...", "Downloading")
+                repository.updateProgress(id, item.downloadProgress, "0 KB/s", "resuming...", "Downloading")
 
-            activeJobs[id]?.cancel()
-            val job = downloadEngine.download(
-                url = downloadUrl,
-                destination = destFile,
-                tempFile = tempFile,
-                scope = viewModelScope,
-                onProgress = { progress ->
-                    viewModelScope.launch {
-                        val remaining = 1f - item.downloadProgress
-                        val totalProgress = (item.downloadProgress + progress.fraction * remaining).coerceAtMost(1f)
-                        repository.updateProgress(
-                            id = id,
-                            progress = totalProgress,
-                            speed = progress.speed,
-                            eta = progress.eta,
-                            status = if (totalProgress < 1f) "Downloading" else "Completed"
-                        )
-                        if (totalProgress >= 1f) {
-                            repository.getDownloadById(id)?.let { dbItem ->
-                                repository.update(dbItem.copy(filePath = destFile.absolutePath))
+                activeJobs[id]?.cancel()
+                val job = downloadEngine.download(
+                    url = downloadUrl,
+                    destination = destFile,
+                    tempFile = tempFile,
+                    scope = viewModelScope,
+                    onProgress = { progress ->
+                        viewModelScope.launch {
+                            try {
+                                val remaining = 1f - item.downloadProgress
+                                val totalProgress = (item.downloadProgress + progress.fraction * remaining).coerceAtMost(1f)
+                                repository.updateProgress(
+                                    id = id,
+                                    progress = totalProgress,
+                                    speed = progress.speed,
+                                    eta = progress.eta,
+                                    status = if (totalProgress < 1f) "Downloading" else "Completed"
+                                )
+                                if (totalProgress >= 1f) {
+                                    repository.getDownloadById(id)?.let { dbItem ->
+                                        repository.update(dbItem.copy(filePath = destFile.absolutePath))
+                                    }
+                                }
+                            } catch (e: Throwable) {
+                                Log.e("DownloadViewModel", "Resume progress update failed", e)
                             }
                         }
                     }
-                }
-            )
-            activeJobs[id] = job
+                )
+                activeJobs[id] = job
+            } catch (e: Throwable) {
+                Log.e("DownloadViewModel", "Failed to resume download", e)
+                _metadataState.value = MetadataState.Error("Failed to resume: ${e.message ?: "Unknown error"}")
+            }
         }
     }
 
