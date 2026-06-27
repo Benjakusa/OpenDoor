@@ -270,6 +270,15 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                     destination = destFile,
                     tempFile = tempFile,
                     scope = viewModelScope,
+                    onError = { errorMsg ->
+                        viewModelScope.launch {
+                            try {
+                                repository.updateProgress(downloadId, 0.0f, "0 KB/s", "error", "Failed")
+                            } catch (e: Throwable) {
+                                Log.e("DownloadViewModel", "Error handler failed", e)
+                            }
+                        }
+                    },
                     onProgress = { progress ->
                         viewModelScope.launch {
                             try {
@@ -341,6 +350,10 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun saveToPublicStorage(file: File, fileName: String, mimeType: String): String? {
+        if (!file.exists()) {
+            Log.w("DownloadViewModel", "Cannot save to public storage: file not found at ${file.absolutePath}")
+            return null
+        }
         return try {
             val context = getApplication<Application>()
             val resolver = context.contentResolver
@@ -407,6 +420,15 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                     destination = destFile,
                     tempFile = tempFile,
                     scope = viewModelScope,
+                    onError = { errorMsg ->
+                        viewModelScope.launch {
+                            try {
+                                repository.updateProgress(id, 0.0f, "0 KB/s", "error", "Failed")
+                            } catch (e: Throwable) {
+                                Log.e("DownloadViewModel", "Resume error handler failed", e)
+                            }
+                        }
+                    },
                     onProgress = { progress ->
                         viewModelScope.launch {
                             try {

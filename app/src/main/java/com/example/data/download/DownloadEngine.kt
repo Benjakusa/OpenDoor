@@ -35,41 +35,49 @@ class DownloadEngine(
         destination: File,
         tempFile: File,
         onProgress: (DownloadProgress) -> Unit,
+        onError: ((String) -> Unit)? = null,
         scope: CoroutineScope
     ): Job {
         return scope.launch(Dispatchers.IO) {
-            val startBytes = if (tempFile.exists()) tempFile.length() else 0L
-
-            val request = Request.Builder()
-                .url(url)
-                .apply {
-                    if (startBytes > 0) {
-                        header("Range", "bytes=$startBytes-")
-                    }
-                }
-                .build()
-
-            val response = client.newCall(request).execute()
-
-            if (!response.isSuccessful && response.code != 206) {
-                response.close()
-                throw Exception("Download failed: HTTP ${response.code}")
-            }
-
-            val totalBytes = when {
-                startBytes > 0 -> {
-                    response.header("Content-Range")
-                        ?.substringAfter("/")
-                        ?.toLongOrNull()
-                        ?: response.body?.contentLength()?.let { startBytes + it }
-                        ?: -1L
-                }
-                else -> response.body?.contentLength() ?: -1L
-            }
-
-            val body = response.body ?: throw Exception("Empty response body")
-
+            var response: okhttp3.Response? = null
+            var body: okhttp3.ResponseBody? = null
             try {
+                val startBytes = if (tempFile.exists()) tempFile.length() else 0L
+
+                val request = Request.Builder()
+                    .url(url)
+                    .apply {
+                        if (startBytes > 0) {
+                            header("Range", "bytes=$startBytes-")
+                        }
+                    }
+                    .build()
+
+                response = client.newCall(request).execute()
+
+                if (!response.isSuccessful && response.code != 206) {
+                    response.close()
+                    onError?.invoke("Server returned HTTP ${response.code}")
+                    return@launch
+                }
+
+                val totalBytes = when {
+                    startBytes > 0 -> {
+                        response.header("Content-Range")
+                            ?.substringAfter("/")
+                            ?.toLongOrNull()
+                            ?: response.body?.contentLength()?.let { startBytes + it }
+                            ?: -1L
+                    }
+                    else -> response.body?.contentLength() ?: -1L
+                }
+
+                body = response.body
+                if (body == null) {
+                    onError?.invoke("Empty response body")
+                    return@launch
+                }
+
                 var bytesDownloaded = startBytes
                 FileOutputStream(tempFile, startBytes > 0).use { outputStream ->
                     val buffer = ByteArray(8192)
@@ -78,7 +86,7 @@ class DownloadEngine(
                     body.byteStream().use { input ->
                         var bytesRead: Int
                         while (input.read(buffer).also { bytesRead = it } != -1) {
-                            if (!isActive) throw CancellationException("Download cancelled")
+                            if (!isActive) return@launch
 
                             bytesDownloaded += bytesRead
                             outputStream.write(buffer, 0, bytesRead)
@@ -118,16 +126,17 @@ class DownloadEngine(
                     }
                 }
 
-                // Rename temp to final on completion
                 if (totalBytes < 0 || bytesDownloaded >= totalBytes) {
                     tempFile.renameTo(destination)
                 }
             } catch (e: CancellationException) {
-                body.close()
+                body?.close()
+                response?.close()
                 throw e
-            } catch (e: Exception) {
-                body.close()
-                throw e
+            } catch (e: Throwable) {
+                body?.close()
+                response?.close()
+                onError?.invoke(e.message ?: "Download failed")
             }
         }
     }
