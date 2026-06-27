@@ -1,7 +1,10 @@
 package com.example.viewmodel
 
 import android.app.Application
+import android.content.ContentValues
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -182,9 +185,10 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                     formatUrlMap["${f.quality}.${f.ext}"] = f.downloadUrl
                 }
 
-                val videos = response.videoFormats.ifEmpty {
-                    response.formats.filter { it.hasVideo }
-                }.map { ResolutionOption(it.quality, it.fileSize) }
+                val videos = response.videoFormats
+                    .filter { it.hasAudio }
+                    .ifEmpty { response.videoFormats }
+                    .map { ResolutionOption(it.quality, it.fileSize) }
                     .ifEmpty { listOf(ResolutionOption("Default Quality", 0)) }
 
                 val audios = response.audioFormats.ifEmpty {
@@ -270,7 +274,9 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                         )
                         if (progress.fraction >= 1f) {
                             repository.getDownloadById(downloadId)?.let { item ->
-                                repository.update(item.copy(filePath = destFile.absolutePath))
+                                val mime = if (isAudio) "audio/mp4" else "video/mp4"
+                                val publicUri = saveToPublicStorage(destFile, fileName, mime)
+                                repository.update(item.copy(filePath = publicUri ?: destFile.absolutePath))
                             }
                         }
                     }
@@ -309,6 +315,37 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
     private fun sanitizeFileName(name: String): String {
         return name.replace(Regex("""[\\/:*?"<>|]"""), "_").take(100)
+    }
+
+    private fun saveToPublicStorage(file: File, fileName: String, mimeType: String): String? {
+        return try {
+            val context = getApplication<Application>()
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.MIME_TYPE, mimeType)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OpenDoor")
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+            }
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            uri?.let {
+                resolver.openOutputStream(it)?.use { output ->
+                    file.inputStream().use { input -> input.copyTo(output) }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    contentValues.clear()
+                    contentValues.put(MediaStore.Downloads.IS_PENDING, 0)
+                    resolver.update(it, contentValues, null, null)
+                }
+            }
+            file.delete()
+            uri?.toString()
+        } catch (e: Exception) {
+            Log.w("DownloadViewModel", "Failed to save to public storage: ${e.message}")
+            null
+        }
     }
 
     fun pauseDownload(id: Int) {
