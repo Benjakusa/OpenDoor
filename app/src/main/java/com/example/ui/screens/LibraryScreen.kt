@@ -398,7 +398,7 @@ fun LibraryItemRow(
     }
 
     Card(
-        onClick = if (fileExists) onPlay else {},
+        onClick = { if (fileExists) onPlay() },
         colors = CardDefaults.cardColors(containerColor = VaultDarkGray),
         shape = RoundedCornerShape(20.dp),
         border = BorderStroke(1.dp, if (fileExists) VaultMediumGray else VaultRed.copy(alpha = 0.4f)),
