@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
@@ -31,6 +32,10 @@ import coil.compose.AsyncImage
 import com.example.data.model.DownloadItem
 import com.example.ui.theme.*
 import com.example.viewmodel.DownloadViewModel
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -356,12 +361,47 @@ fun LibraryItemRow(
 ) {
     var expandedMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val fileExists = remember(item.filePath) {
+        if (item.filePath.startsWith("content://")) {
+            try {
+                val uri = Uri.parse(item.filePath)
+                context.contentResolver.openInputStream(uri)?.close()
+                true
+            } catch (e: Exception) {
+                false
+            }
+        } else {
+            File(item.filePath).exists()
+        }
+    }
+    val downloadDate = remember(item.timestamp) {
+        formatDate(item.timestamp)
+    }
+
+    fun openFile() {
+        try {
+            val uri = if (item.filePath.startsWith("content://")) {
+                Uri.parse(item.filePath)
+            } else {
+                Uri.fromFile(File(item.filePath))
+            }
+            val mimeType = if (item.fileType == "audio") "audio/*" else "video/*"
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mimeType)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Cannot open file: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Card(
-        onClick = onPlay,
+        onClick = if (fileExists) onPlay else {},
         colors = CardDefaults.cardColors(containerColor = VaultDarkGray),
         shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, VaultMediumGray),
+        border = BorderStroke(1.dp, if (fileExists) VaultMediumGray else VaultRed.copy(alpha = 0.4f)),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("library_item_${item.id}")
@@ -376,14 +416,29 @@ fun LibraryItemRow(
                     .size(width = 90.dp, height = 64.dp)
                     .clip(RoundedCornerShape(12.dp))
             ) {
-                AsyncImage(
-                    model = item.thumbnailUrl,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (fileExists) {
+                    AsyncImage(
+                        model = item.thumbnailUrl,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(VaultRed.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.ErrorOutline,
+                            contentDescription = "File missing",
+                            tint = VaultRed,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
 
-                // Platform or format label
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -391,8 +446,8 @@ fun LibraryItemRow(
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
                     Text(
-                        text = item.quality,
-                        color = if (item.fileType == "audio") VaultAmber else VaultEmerald,
+                        text = if (fileExists) item.quality else "Missing",
+                        color = if (!fileExists) VaultRed else if (item.fileType == "audio") VaultAmber else VaultEmerald,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -431,7 +486,7 @@ fun LibraryItemRow(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "${formatDuration(item.duration)}  •  ${formatFileSize(item.fileSize)}",
+                        text = "${formatFileSize(item.fileSize)}  •  $downloadDate",
                         color = VaultLightGray,
                         fontSize = 10.sp
                     )
@@ -459,14 +514,24 @@ fun LibraryItemRow(
                     onDismissRequest = { expandedMenu = false },
                     modifier = Modifier.background(VaultMediumGray)
                 ) {
-                    DropdownMenuItem(
-                        text = { Text("Play Media", color = VaultWhite, fontSize = 13.sp) },
-                        onClick = {
-                            expandedMenu = false
-                            onPlay()
-                        },
-                        leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = VaultEmerald, modifier = Modifier.size(18.dp)) }
-                    )
+                    if (fileExists) {
+                        DropdownMenuItem(
+                            text = { Text("Play Media", color = VaultWhite, fontSize = 13.sp) },
+                            onClick = {
+                                expandedMenu = false
+                                onPlay()
+                            },
+                            leadingIcon = { Icon(Icons.Default.PlayArrow, contentDescription = null, tint = VaultEmerald, modifier = Modifier.size(18.dp)) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Open File", color = VaultWhite, fontSize = 13.sp) },
+                            onClick = {
+                                expandedMenu = false
+                                openFile()
+                            },
+                            leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null, tint = VaultBlue, modifier = Modifier.size(18.dp)) }
+                        )
+                    }
                     DropdownMenuItem(
                         text = { Text("Rename", color = VaultWhite, fontSize = 13.sp) },
                         onClick = {
@@ -479,7 +544,6 @@ fun LibraryItemRow(
                         text = { Text("Share Link", color = VaultWhite, fontSize = 13.sp) },
                         onClick = {
                             expandedMenu = false
-                            // Native share simulation
                             try {
                                 val sendIntent: Intent = Intent().apply {
                                     action = Intent.ACTION_SEND
@@ -506,5 +570,14 @@ fun LibraryItemRow(
                 }
             }
         }
+    }
+}
+
+private fun formatDate(timestamp: Long): String {
+    return try {
+        val sdf = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault())
+        sdf.format(Date(timestamp))
+    } catch (e: Exception) {
+        "Unknown date"
     }
 }

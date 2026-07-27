@@ -23,9 +23,9 @@ val VaultLightGray: Color
 val VaultWhite: Color
     get() = if (ThemeState.isDark) Color(0xFFE6E1E5) else Color(0xFF1C1B1F)
 
-// Primary Accent
+// Primary Accent (Orange-Red)
 val VaultBlue: Color
-    get() = if (ThemeState.isDark) Color(0xFFD0BCFF) else Color(0xFF6750A4)
+    get() = if (ThemeState.isDark) Color(0xFFFF9E80) else Color(0xFFD84315)
 
 // Functional UI Colors
 val VaultEmerald = Color(0xFF00875A) // Sleek green for active downloads

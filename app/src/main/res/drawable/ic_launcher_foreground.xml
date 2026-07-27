@@ -16,13 +16,13 @@
                 android:endY="54"
                 android:type="linear">
                 <item
-                    android:color="#FFD0BCFF"
+                    android:color="#FFFF9E80"
                     android:offset="0.0" />
                 <item
-                    android:color="#40D0BCFF"
+                    android:color="#40FF9E80"
                     android:offset="0.6" />
                 <item
-                    android:color="#00D0BCFF"
+                    android:color="#00FF9E80"
                     android:offset="1.0" />
             </gradient>
         </aapt:attr>
@@ -38,8 +38,8 @@
 
     <!-- The Door swinging open -->
     <path
-        android:fillColor="#2D1E4E"
-        android:strokeColor="#D0BCFF"
+        android:fillColor="#3D1500"
+        android:strokeColor="#FF9E80"
         android:strokeWidth="3.5"
         android:strokeLineJoin="round"
         android:pathData="M38,30 L52,22 L52,86 L38,78 Z" />

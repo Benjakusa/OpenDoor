@@ -2,6 +2,7 @@ package com.example.viewmodel
 
 import android.app.Application
 import android.content.ContentValues
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -241,18 +242,19 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
                 val ext = detectExtension(downloadUrl, isAudio)
                 val fileName = "${sanitizeFileName(metadata.title)}_${optionName.replace(" ", "_")}.$ext"
-                val destFile = File(downloadDir, fileName)
-                val tempFile = File(downloadDir, "$fileName.tmp")
-                withContext(Dispatchers.IO) {
+                val finalFileName = withContext(Dispatchers.IO) {
                     var counter = 0
+                    var name = fileName
                     val baseName = fileName.substringBeforeLast(".")
                     val extension = fileName.substringAfterLast(".")
-                    while (destFile.exists() && counter < 100) {
+                    while (File(downloadDir, name).exists() && counter < 100) {
                         counter++
-                        val uniqueName = "${baseName}_($counter).$extension"
-                        destFile.renameTo(File(downloadDir, uniqueName))
+                        name = "${baseName}_($counter).$extension"
                     }
+                    name
                 }
+                val destFile = File(downloadDir, finalFileName)
+                val tempFile = File(downloadDir, "$finalFileName.tmp")
 
                 val newItem = DownloadItem(
                     url = metadata.url,
@@ -302,7 +304,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                                 if (progress.fraction >= 1f) {
                                     repository.getDownloadById(downloadId)?.let { item ->
                                         val mime = if (isAudio) "audio/mp4" else "video/mp4"
-                                        val publicUri = saveToPublicStorage(tempFile, fileName, mime)
+                                        val publicUri = saveToPublicStorage(destFile, finalFileName, mime)
                                         repository.update(item.copy(filePath = publicUri ?: destFile.absolutePath))
                                     }
                                 }
@@ -386,7 +388,6 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                     resolver.update(it, contentValues, null, null)
                 }
             }
-            file.delete()
             uri?.toString()
         } catch (e: Throwable) {
             Log.w("DownloadViewModel", "Failed to save to public storage: ${e.message}")
@@ -500,11 +501,23 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             activeJobs[downloadItem.id]?.cancel()
             activeJobs.remove(downloadItem.id)
-            if (!downloadItem.filePath.startsWith("http")) {
+            withContext(Dispatchers.IO) {
+                // Delete private file
                 val file = File(downloadItem.filePath)
                 if (file.exists()) file.delete()
                 val tempFile = File(downloadItem.filePath + ".tmp")
                 if (tempFile.exists()) tempFile.delete()
+                // Delete from MediaStore if URI
+                if (downloadItem.filePath.startsWith("content://")) {
+                    try {
+                        val context = getApplication<Application>()
+                        context.contentResolver.delete(
+                            Uri.parse(downloadItem.filePath), null, null
+                        )
+                    } catch (e: Throwable) {
+                        Log.w("DownloadViewModel", "Failed to delete MediaStore entry: ${e.message}")
+                    }
+                }
             }
             repository.delete(downloadItem)
         }
@@ -520,12 +533,26 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
     fun clearAllCompletedDownloads() {
         viewModelScope.launch {
-            downloads.value.filter { it.status == "Completed" }.forEach {
-                if (!it.filePath.startsWith("http")) {
-                    val file = File(it.filePath)
-                    if (file.exists()) file.delete()
+            withContext(Dispatchers.IO) {
+                downloads.value.filter { it.status == "Completed" }.forEach {
+                    if (!it.filePath.startsWith("http")) {
+                        val file = File(it.filePath)
+                        if (file.exists()) file.delete()
+                        val tempFile = File(it.filePath + ".tmp")
+                        if (tempFile.exists()) tempFile.delete()
+                    }
+                    if (it.filePath.startsWith("content://")) {
+                        try {
+                            val context = getApplication<Application>()
+                            context.contentResolver.delete(
+                                Uri.parse(it.filePath), null, null
+                            )
+                        } catch (e: Throwable) {
+                            Log.w("DownloadViewModel", "Failed to delete MediaStore entry: ${e.message}")
+                        }
+                    }
+                    repository.delete(it)
                 }
-                repository.delete(it)
             }
         }
     }

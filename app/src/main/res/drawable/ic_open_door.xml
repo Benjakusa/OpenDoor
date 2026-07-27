@@ -5,7 +5,7 @@
     android:viewportHeight="24">
     <!-- Glowing light opening -->
     <path
-        android:fillColor="#3D2070"
+        android:fillColor="#D84315"
         android:pathData="M6,4 L18,4 L18,20 L6,20 Z" />
     <!-- Door Frame -->
     <path
@@ -16,7 +16,7 @@
         android:pathData="M6,20 L6,4 L18,4 L18,20" />
     <!-- Open Door -->
     <path
-        android:fillColor="#2D1E4E"
+        android:fillColor="#3D1500"
         android:strokeColor="#FFFFFF"
         android:strokeWidth="1.5"
         android:strokeLineJoin="round"
