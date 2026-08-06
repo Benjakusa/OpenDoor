@@ -121,7 +121,7 @@ fun StorageManagementTab(viewModel: DownloadViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         StorageLegendItem(color = VaultLightGray, name = "Other & System", sizeStr = formatFileSize(systemUsedBytes))
-                        StorageLegendItem(color = VaultEmerald, name = "OpenDoor Files", sizeStr = formatFileSize(appUsedBytes))
+                        StorageLegendItem(color = VaultEmerald, name = "Shmor Files", sizeStr = formatFileSize(appUsedBytes))
                         StorageLegendItem(color = VaultMediumGray, name = "Available Free", sizeStr = formatFileSize(freeBytes))
                     }
 

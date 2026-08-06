@@ -91,7 +91,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     var adSettingsEnabled = MutableStateFlow(true)
         private set
 
-    var appAnnouncement = MutableStateFlow("Welcome to OpenDoor v1.0! Tap, download, and enjoy videos offline with dynamic speed controls.")
+    var appAnnouncement = MutableStateFlow("Welcome to Shmor v1.0! Tap, download, and enjoy videos offline with dynamic speed controls.")
         private set
 
     private val backendApi: BackendApi?
@@ -111,7 +111,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
 
         downloadDir = File(
             Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-            "OpenDoor"
+            "Shmor"
         ).also { it.mkdirs() }
 
         val backendUrl = try {
@@ -373,7 +373,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
                 put(MediaStore.Downloads.DISPLAY_NAME, fileName)
                 put(MediaStore.Downloads.MIME_TYPE, mimeType)
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OpenDoor")
+                    put(MediaStore.Downloads.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/Shmor")
                     put(MediaStore.Downloads.IS_PENDING, 1)
                 }
             }

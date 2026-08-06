@@ -85,7 +85,7 @@ fun VideoVaultApp(
                                      }
                                      Spacer(modifier = Modifier.width(12.dp))
                                      Text(
-                                         "OpenDoor",
+                                         "Shmor",
                                          fontWeight = FontWeight.ExtraBold,
                                          fontSize = 20.sp,
                                          color = MaterialTheme.colorScheme.onBackground
@@ -231,7 +231,7 @@ fun VideoVaultApp(
                 onLogout = {
                     showProfileDialog = false
                     showOnboarding = true
-                    Toast.makeText(context, "Signed out of OpenDoor", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Signed out of Shmor", Toast.LENGTH_SHORT).show()
                 }
             )
         }
@@ -275,7 +275,7 @@ fun SplashScreen(onFinish: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "OpenDoor",
+                text = "Shmor",
                 color = VaultWhite,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 32.sp,
@@ -351,7 +351,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "OpenDoor",
+                text = "Shmor",
                 color = VaultWhite,
                 fontWeight = FontWeight.ExtraBold,
                 fontSize = 26.sp,

@@ -115,7 +115,7 @@ fun PlayerContent(
         3 to "[Atmospheric background music playing]",
         8 to "Welcome to the future of high-speed offline offline playback.",
         15 to "We are downloading and managing files in full quality.",
-        24 to "OpenDoor gives you secure access to your media assets.",
+        24 to "Shmor gives you secure access to your media assets.",
         35 to "Thank you for exploring this experience!"
     )
 

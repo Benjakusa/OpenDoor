@@ -547,7 +547,7 @@ fun LibraryItemRow(
                             try {
                                 val sendIntent: Intent = Intent().apply {
                                     action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, "Offline download via OpenDoor: ${item.title}\nSource: ${item.url}")
+                                    putExtra(Intent.EXTRA_TEXT, "Offline download via Shmor: ${item.title}\nSource: ${item.url}")
                                     type = "text/plain"
                                 }
                                 val shareIntent = Intent.createChooser(sendIntent, null)
