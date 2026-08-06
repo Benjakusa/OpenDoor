@@ -110,7 +110,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         )
 
         downloadDir = File(
-            context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir,
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
             "OpenDoor"
         ).also { it.mkdirs() }
 
